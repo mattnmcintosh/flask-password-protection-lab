@@ -12,11 +12,13 @@ class Signup(Resource):
   def post(self):
     data = request.get_json() or {}
     try:
-      new_user = User(username=data.get("username"),password_hash=data.get("password"),)
-      db.session.add(new_user)
+      user = User(username=data.get("username"))
+      user.password_hash = data.get("password")
+      db.session.add(user)
       db.session.commit()
-      session["user_id"] = new_user.id
-      return make_response(UserSchema().dump(new_user), 201)
+      session["user_id"] = user.id
+      user_json = UserSchema().dump(user)
+      return make_response(user_json, 201)
     except Exception as e:
       db.session.rollback()
       return {"error": str(e)}, 400
@@ -25,18 +27,21 @@ class Login(Resource):
 
   def post(self):
     data = request.get_json() or {}
-    user = User.query.filter_by(username=data.get("username")).first()
+    username = data.get("username")
+    password = data.get("password")
+    user = User.query.filter_by(username=username).first()
 
-    if user and user.authenticate(data.get("password")):
+    if user and user.authenticate(password):
       session["user_id"] = user.id
-      return make_response(UserSchema().dump(user), 200)
+      user_json = UserSchema().dump(user)
+      return make_response(user_json, 200)
 
     return {"message": "Invalid username or password"}, 401
 
 class Logout(Resource):
 
   def delete(self):
-    session["user_id"] = None
+    session.pop("user_id", None)
     return make_response("", 204)
 
 class CheckSession(Resource):
@@ -44,9 +49,11 @@ class CheckSession(Resource):
   def get(self):
     user_id = session.get("user_id")
     if user_id:
-      user = User.query.get(user_id)
+      user = User.query.filter(User.id == user_id).first()
       if user:
-        return make_response(UserSchema().dump(user), 200)
+        user_json = UserSchema().dump(user)
+        return make_response(user_json, 200)
+
     return make_response("", 204)
 
 class ClearSession(Resource):
